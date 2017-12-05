@@ -102,7 +102,7 @@ void setup() {
     gDivider = 0;
     gTimestamp = 0;
 
-    gTap.setMaxBeatLengthMS(MAX_VALUE_MS);
+    //gTap.setMaxBeatLengthMS(MAX_VALUE_MS);
     gTap.setMinBeatLengthMS(MIN_VALUE_MS);
 
     // set default value
@@ -160,15 +160,18 @@ void loop() {
     if(gPrevTapVal - gTapVal != 0) {
         dprint(F("TAP "));
         dprintln(gTapVal);
+        if(gTapVal > MAX_VALUE_MS) {
+            gTapVal = MAX_VALUE_MS;
+        }
         gBeatMS = gPrevTapVal = gTapVal;
         digipot_write_tap(gTapVal);
     }  
 
     // read input from pot value (w/ basic filtering)
-    gPotVal = analogRead(PIN_POT);
-    if(abs(gPrevPotVal - gPotVal) > 2) { // TODO: better filtering
+    gPotVal = analogRead(PIN_POT) >> 2;
+    if(abs(gPrevPotVal - gPotVal) > 1) { // TODO: better filtering
         gPrevPotVal = gPotVal;
-        gBeatMS = map(gPotVal, 0, 1024, MIN_VALUE_MS, MAX_VALUE_MS);
+        gBeatMS = map(gPotVal, 0, 255, MIN_VALUE_MS, MAX_VALUE_MS);
         dprint(F("POT "));
         dprintln(gBeatMS);
         digipot_write_pot(gPotVal);
