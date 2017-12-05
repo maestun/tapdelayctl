@@ -40,7 +40,8 @@
 // ============================================================================
 ArduinoTapTempo gTap;
 int             gPrevPotVal, gPotVal;
-int             gBeatMS, gPrevBeatMS;
+int             gPrevTapVal, gTapVal;
+int             gBeatMS;
 bool            gShowTempo;
 long            gTimestamp;
 uint8_t         gDivider; // right bitshift (divide beat by 1 / 2 / 4)
@@ -48,8 +49,8 @@ uint8_t         gDivider; // right bitshift (divide beat by 1 / 2 / 4)
 
 // Delay msecs = (11.46 * Resistance KΩ) + 29.70
 inline void digipot_write(uint8_t aByte) {
-    dprint(F("SPI: "));
-    dprintln(aByte);
+    // dprint(F("SPI: "));
+    // dprintln(aByte);
     digitalWrite(PIN_DIGIPOT_CS, LOW);
     SPI.transfer(DIGIPOT_ADDRESS);
     SPI.transfer(aByte);
@@ -71,8 +72,8 @@ inline void digipot_write_tap(int aBeatMS) {
     // RΩ = 1000 * ((beat_ms - 29.7) / 11.46)
     float ohms = (aBeatMS - 29.7) / 11.46;
     ohms *= 1000;
-    dprint(F("ohms: "));
-    dprintln(ohms);
+    // dprint(F("ohms: "));
+    // dprintln(ohms);
     uint8_t b = map((long)ohms, 0, DIGIPOT_OHMS, 0, 0xff);
     digipot_write(b);
 }
@@ -94,7 +95,8 @@ void setup() {
     digitalWrite(PIN_LED, 0);
 
     gPotVal = gPrevPotVal = analogRead(PIN_POT);
-    gBeatMS = gPrevBeatMS = 0;
+    gTapVal = gPrevTapVal = 0;
+    gBeatMS = 0;
 
     gShowTempo = false;
     gDivider = 0;
@@ -112,18 +114,30 @@ void loop() {
 
     gTap.update(!digitalRead(PIN_TAP));
 
-    long ts = millis() - (gTimestamp + gBeatMS + TAP_LED_DURATION_MS);
-    if(ts < TAP_LED_DURATION_MS) {
-        if(ts < 0) {
-            // reset led until next beat
+    long ts = millis() - gTimestamp;
+    if(ts > TAP_LED_DURATION_MS) {
+        digitalWrite(PIN_LED, 0);
+        if(ts > gBeatMS) {
+            // reset
             gTimestamp = millis();
-            digitalWrite(PIN_LED, 0);
-        }
-        else {
-            // reset led until next beat
-             digitalWrite(PIN_LED, 1);
         }
     }
+    else {
+        digitalWrite(PIN_LED, 1);
+    }
+
+    // long ts = millis() - (gTimestamp + gBeatMS + TAP_LED_DURATION_MS);
+    // if(ts < TAP_LED_DURATION_MS) {
+    //     if(ts < 0) {
+    //         // reset led until next beat
+    //         gTimestamp = millis();
+    //         digitalWrite(PIN_LED, 0);
+    //     }
+    //     else {
+    //         // reset led until next beat
+    //          digitalWrite(PIN_LED, 1);
+    //     }
+    // }
 
     // turn on tempo LED from tap button, for TAP_LED_DURATION_MS
     /*if(gTap.onBeat()) {
@@ -141,21 +155,23 @@ void loop() {
     }*/
 
     // read input from tap button
-    gBeatMS = gTap.getBeatLength();
-    if(gPrevBeatMS - gBeatMS != 0) {
-        dprintln(F("TAP"));
-        gPrevBeatMS = gBeatMS;
-        digipot_write_tap(gBeatMS);
+
+    gTapVal = gTap.getBeatLength();
+    if(gPrevTapVal - gTapVal != 0) {
+        dprint(F("TAP "));
+        dprintln(gTapVal);
+        gBeatMS = gPrevTapVal = gTapVal;
+        digipot_write_tap(gTapVal);
     }  
 
     // read input from pot value (w/ basic filtering)
     gPotVal = analogRead(PIN_POT);
-    if(abs(gPrevPotVal - gPotVal) > 2) {
+    if(abs(gPrevPotVal - gPotVal) > 2) { // TODO: better filtering
         gPrevPotVal = gPotVal;
-        gPrevBeatMS = gBeatMS = map(gPotVal, 0, 1024, MIN_VALUE_MS, MAX_VALUE_MS);
-        // dprint(F("POT "));
-        // dprintln(gBeatMS);
-
+        gBeatMS = map(gPotVal, 0, 1024, MIN_VALUE_MS, MAX_VALUE_MS);
+        dprint(F("POT "));
+        dprintln(gBeatMS);
         digipot_write_pot(gPotVal);
+        gTimestamp = millis();
     }    
 }
