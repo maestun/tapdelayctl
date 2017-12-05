@@ -7,12 +7,12 @@
 // CONFIGURATION
 // ============================================================================
 #define DEBUG_SERIAL                        // comment to disable serial debug
-#define PIN_DIGIPOT_CS          (0)         // MCP41xxx: pin 1
-#define PIN_DIGIPOT_SCLK        (1)         // MCP41xxx: pin 2
-#define PIN_DIGIPOT_SI          (2)         // MCP41xxx: pin 3
+#define PIN_DIGIPOT_CS          (10)         // MCP41xxx: pin 1
+// #define PIN_DIGIPOT_SCLK        (13)         // MCP41xxx: pin 2
+// #define PIN_DIGIPOT_SI          (11)         // MCP41xxx: pin 3
 #define PIN_LED                 (3)         // output: blinking tap led
-#define PIN_TAP                 (4)         // input: tap tempo footswitch
-#define TAP_LED_DURATION_MS     (20)
+#define PIN_TAP                 (2)         // input: tap tempo footswitch
+#define TAP_LED_DURATION_MS     (15)
 #define PIN_POT                 (PIN_A6)    // input: delay pot wiper
 #define MIN_VALUE_MS            (20)
 #define MAX_VALUE_MS            (1000)
@@ -39,16 +39,16 @@
 // GLOBALS
 // ============================================================================
 ArduinoTapTempo gTap;
-int gPrevPotVal, gPotVal;
-int gBeatMS, gPrevBeatMS;
-bool gShowTempo;
-bool tap_last;
-long gTimestamp = 0;
+int             gPrevPotVal, gPotVal;
+int             gBeatMS, gPrevBeatMS;
+bool            gShowTempo;
+long            gTimestamp;
+uint8_t         gDivider; // right bitshift (divide beat by 1 / 2 / 4)
 
 
 // Delay msecs = (11.46 * Resistance KΩ) + 29.70
 inline void digipot_write(uint8_t aByte) {
-    dprint(F("pot: "));
+    dprint(F("SPI: "));
     dprintln(aByte);
     digitalWrite(PIN_DIGIPOT_CS, LOW);
     SPI.transfer(DIGIPOT_ADDRESS);
@@ -83,8 +83,8 @@ void setup() {
 
     // digipot (MCP41xxx)
     pinMode(PIN_DIGIPOT_CS, OUTPUT);
-    pinMode(PIN_DIGIPOT_SCLK, OUTPUT);
-    pinMode(PIN_DIGIPOT_SI, OUTPUT);
+    // pinMode(PIN_DIGIPOT_SCLK, OUTPUT);
+    // pinMode(PIN_DIGIPOT_SI, OUTPUT);
     SPI.begin();
 
     pinMode(PIN_LED, OUTPUT);   
@@ -97,6 +97,8 @@ void setup() {
     gBeatMS = gPrevBeatMS = 0;
 
     gShowTempo = false;
+    gDivider = 0;
+    gTimestamp = 0;
 
     gTap.setMaxBeatLengthMS(MAX_VALUE_MS);
     gTap.setMinBeatLengthMS(MIN_VALUE_MS);
@@ -110,8 +112,21 @@ void loop() {
 
     gTap.update(!digitalRead(PIN_TAP));
 
+    long ts = millis() - (gTimestamp + gBeatMS + TAP_LED_DURATION_MS);
+    if(ts < TAP_LED_DURATION_MS) {
+        if(ts < 0) {
+            // reset led until next beat
+            gTimestamp = millis();
+            digitalWrite(PIN_LED, 0);
+        }
+        else {
+            // reset led until next beat
+             digitalWrite(PIN_LED, 1);
+        }
+    }
+
     // turn on tempo LED from tap button, for TAP_LED_DURATION_MS
-    if(gTap.onBeat()) {
+    /*if(gTap.onBeat()) {
         gShowTempo = true;
         gTimestamp = millis(); 
     }
@@ -123,21 +138,24 @@ void loop() {
             gShowTempo = false;
             digitalWrite(PIN_LED, 0);
         }
-    }
+    }*/
 
-  
-    // read input pot value (w/ basic filtering)
-    gPotVal = analogRead(PIN_POT);
-    if(abs(gPrevPotVal - gPotVal) > 2) {
-        gPrevPotVal = gPotVal;
-        tap_last = false;
-        digipot_write_pot(gPotVal);
-    }
-
-
+    // read input from tap button
     gBeatMS = gTap.getBeatLength();
     if(gPrevBeatMS - gBeatMS != 0) {
+        dprintln(F("TAP"));
         gPrevBeatMS = gBeatMS;
         digipot_write_tap(gBeatMS);
     }  
+
+    // read input from pot value (w/ basic filtering)
+    gPotVal = analogRead(PIN_POT);
+    if(abs(gPrevPotVal - gPotVal) > 2) {
+        gPrevPotVal = gPotVal;
+        gPrevBeatMS = gBeatMS = map(gPotVal, 0, 1024, MIN_VALUE_MS, MAX_VALUE_MS);
+        // dprint(F("POT "));
+        // dprintln(gBeatMS);
+
+        digipot_write_pot(gPotVal);
+    }    
 }
