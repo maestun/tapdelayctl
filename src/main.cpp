@@ -70,7 +70,7 @@ inline void digipot_write_tap(int aBeatMS) {
     // beat in millisecs = (11.46 * Resistance in KΩ) + 29.70
     // RKΩ = (beat_ms - 29.7) / 11.46
     // RΩ = 1000 * ((beat_ms - 29.7) / 11.46)
-    float ohms = (aBeatMS - 29.7) / 11.46;
+    float ohms = ((float)aBeatMS - 29.7) / 11.46;
     ohms *= 1000;
     // dprint(F("ohms: "));
     // dprintln(ohms);
